@@ -6,10 +6,11 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
+use Illuminate\Support\Facades\Auth;
 
 class ModerationScope implements Scope
 {
-    /**
+    /**f
      * All of the extensions to be added to the builder.
      *
      * @var array
@@ -30,6 +31,27 @@ class ModerationScope implements Scope
     ];
 
     /**
+     * Check for route model binding on builder.
+     *
+     * @param Builder $builder
+     * @param Model $model
+     * @return bool
+     */
+    public function hasRouteModelBinding(Builder $builder, Model $model): bool
+    {
+        $key = $model->getRouteKeyName();
+
+        $wheres = array_filter($builder->getQuery()->wheres, function ($where) use ($key) {
+            return $where['type'] === 'Basic'
+                && $where['column'] === $key
+                && $where['operator'] === '='
+                && $where['boolean'] === 'and';
+        });
+
+        return count($wheres) === 1;
+    }
+
+    /**
      * Apply the scope to a given Eloquent query builder.
      *
      * @param  \Illuminate\Database\Eloquent\Builder $builder
@@ -39,17 +61,24 @@ class ModerationScope implements Scope
      */
     public function apply(Builder $builder, Model $model)
     {
+        $this->extend($builder);
+
+        if ($this->hasRouteModelBinding($builder, $model)) {
+            $user = Auth::user();
+            if ($user && method_exists($user, 'isModerator') && $user->isModerator()) {
+                return;
+            }
+        }
+
         $strict = (isset($model::$strictModeration))
             ? $model::$strictModeration
             : config('moderation.strict');
 
         if ($strict) {
-            $builder->where($model->getQualifiedStatusColumn(), '=', Status::APPROVED);
+            $builder->where($model->getQualifiedStatusColumn(), '=', Status::$APPROVED);
         } else {
-            $builder->where($model->getQualifiedStatusColumn(), '!=', Status::REJECTED);
+            $builder->where($model->getQualifiedStatusColumn(), '!=', Status::$REJECTED);
         }
-
-        $this->extend($builder);
     }
 
     /**
@@ -114,7 +143,7 @@ class ModerationScope implements Scope
         $builder->macro('withPending', function (Builder $builder) {
             $this->remove($builder, $builder->getModel());
 
-            return $builder->whereIN($this->getStatusColumn($builder), [Status::APPROVED, Status::PENDING]);
+            return $builder->whereIN($this->getStatusColumn($builder), [Status::$APPROVED, Status::$PENDING]);
         });
     }
 
@@ -131,7 +160,7 @@ class ModerationScope implements Scope
             $this->remove($builder, $builder->getModel());
 
             return $builder->whereIN($this->getStatusColumn($builder),
-                [Status::APPROVED, Status::REJECTED]);
+                [Status::$APPROVED, Status::$REJECTED]);
         });
     }
 
@@ -148,7 +177,7 @@ class ModerationScope implements Scope
             $this->remove($builder, $builder->getModel());
 
             return $builder->whereIN($this->getStatusColumn($builder),
-                [Status::APPROVED, Status::POSTPONED]);
+                [Status::$APPROVED, Status::$POSTPONED]);
         });
     }
 
@@ -181,7 +210,7 @@ class ModerationScope implements Scope
 
             $this->remove($builder, $model);
 
-            $builder->where($model->getQualifiedStatusColumn(), '=', Status::APPROVED);
+            $builder->where($model->getQualifiedStatusColumn(), '=', Status::$APPROVED);
 
             return $builder;
         });
@@ -201,7 +230,7 @@ class ModerationScope implements Scope
 
             $this->remove($builder, $model);
 
-            $builder->where($model->getQualifiedStatusColumn(), '=', Status::PENDING);
+            $builder->where($model->getQualifiedStatusColumn(), '=', Status::$PENDING);
 
             return $builder;
         });
@@ -221,7 +250,7 @@ class ModerationScope implements Scope
 
             $this->remove($builder, $model);
 
-            $builder->where($model->getQualifiedStatusColumn(), '=', Status::REJECTED);
+            $builder->where($model->getQualifiedStatusColumn(), '=', Status::$REJECTED);
 
             return $builder;
         });
@@ -241,7 +270,7 @@ class ModerationScope implements Scope
 
             $this->remove($builder, $model);
 
-            $builder->where($model->getQualifiedStatusColumn(), '=', Status::POSTPONED);
+            $builder->where($model->getQualifiedStatusColumn(), '=', Status::$POSTPONED);
 
             return $builder;
         });
@@ -258,7 +287,7 @@ class ModerationScope implements Scope
     {
         $builder->macro('approve', function (Builder $builder, $id = null) {
             $builder->withAnyStatus();
-            return $this->updateModerationStatus($builder, $id, Status::APPROVED);
+            return $this->updateModerationStatus($builder, $id, Status::$APPROVED);
         });
     }
 
@@ -273,7 +302,7 @@ class ModerationScope implements Scope
     {
         $builder->macro('reject', function (Builder $builder, $id = null) {
             $builder->withAnyStatus();
-            return $this->updateModerationStatus($builder, $id, Status::REJECTED);
+            return $this->updateModerationStatus($builder, $id, Status::$REJECTED);
 
         });
     }
@@ -289,7 +318,7 @@ class ModerationScope implements Scope
     {
         $builder->macro('postpone', function (Builder $builder, $id = null) {
             $builder->withAnyStatus();
-            return $this->updateModerationStatus($builder, $id, Status::POSTPONED);
+            return $this->updateModerationStatus($builder, $id, Status::$POSTPONED);
         });
     }
 
@@ -304,7 +333,7 @@ class ModerationScope implements Scope
     {
         $builder->macro('pend', function (Builder $builder, $id = null) {
             $builder->withAnyStatus();
-            return $this->updateModerationStatus($builder, $id, Status::PENDING);
+            return $this->updateModerationStatus($builder, $id, Status::$PENDING);
         });
     }
 

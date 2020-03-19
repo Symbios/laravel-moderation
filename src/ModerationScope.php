@@ -52,6 +52,27 @@ class ModerationScope implements Scope
     }
 
     /**
+     * Add where clause to filter model by status
+     *
+     * @param Builder $builder
+     * @param Model $model
+     * @param string $method
+     * @return void
+     */
+    public function addStatusWhereClause(Builder $builder, Model $model, string $method = 'where')
+    {
+        $strict = (isset($model::$strictModeration))
+            ? $model::$strictModeration
+            : config('moderation.strict');
+
+        if ($strict) {
+            $builder->{$method}($model->getQualifiedStatusColumn(), '=', Status::$APPROVED);
+        } else {
+            $builder->{$method}($model->getQualifiedStatusColumn(), '!=', Status::$REJECTED);
+        }
+    }
+
+    /**
      * Apply the scope to a given Eloquent query builder.
      *
      * @param  \Illuminate\Database\Eloquent\Builder $builder
@@ -65,20 +86,19 @@ class ModerationScope implements Scope
 
         if ($this->hasRouteModelBinding($builder, $model)) {
             $user = Auth::user();
-            if ($user && method_exists($user, 'isModerator') && $user->isModerator()) {
-                return;
+            if ($user) {
+                if (method_exists($user, 'isModerator') && $user->isModerator()) {
+                    return;
+                }
+
+                if (method_exists($model, 'user')) {
+                    $builder->where('user_id', $user->id);
+                    return $this->addStatusWhereClause($builder, $model, 'orWhere');
+                }
             }
         }
 
-        $strict = (isset($model::$strictModeration))
-            ? $model::$strictModeration
-            : config('moderation.strict');
-
-        if ($strict) {
-            $builder->where($model->getQualifiedStatusColumn(), '=', Status::$APPROVED);
-        } else {
-            $builder->where($model->getQualifiedStatusColumn(), '!=', Status::$REJECTED);
-        }
+        $this->addStatusWhereClause($builder, $model);
     }
 
     /**

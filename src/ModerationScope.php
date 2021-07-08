@@ -87,6 +87,10 @@ class ModerationScope implements Scope
         if ($this->hasRouteModelBinding($builder, $model)) {
             $user = Auth::user();
             if ($user) {
+                if (method_exists($user, 'can') && $user->can('destroy', $model)) {
+                    return;
+                }
+
                 if (method_exists($user, 'isModerator') && $user->isModerator()) {
                     return;
                 }

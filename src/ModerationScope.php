@@ -426,7 +426,7 @@ class ModerationScope implements Scope
             $model->{$model->getStatusColumn()} = $status;
             
             if ($model instanceof Story) {
-                if (!$model->{$model->getModeratedAtColumn()}) {
+                if (!$model->{$model->getModeratedAtColumn()} && $status === Status::$APPROVED) {
                     $model->{$model->getModeratedAtColumn()} = Carbon::now();
                 }
             } else {

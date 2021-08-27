@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
 use Illuminate\Support\Facades\Auth;
+use Story\Models\Story;
 
 class ModerationScope implements Scope
 {
@@ -423,7 +424,15 @@ class ModerationScope implements Scope
         if ($id) {
             $model = $builder->find($id);
             $model->{$model->getStatusColumn()} = $status;
-            $model->{$model->getModeratedAtColumn()} = Carbon::now();
+            
+            if ($model instanceof Story) {
+                if (!$model->{$model->getModeratedAtColumn()}) {
+                    $model->{$model->getModeratedAtColumn()} = Carbon::now();
+                }
+            } else {
+                $model->{$model->getModeratedAtColumn()} = Carbon::now();
+            }
+
             //if moderated_by in enabled then append it to the update
             if ($moderated_by = $model->getModeratedByColumn()) {
                 $model->{$moderated_by} = \Auth::user()->getKey();
